@@ -1,0 +1,22 @@
+{
+    "include": ["src"],
+    "compilerOptions": {
+        "strict": true,
+        "newLine": "lf",
+        "outDir": "dist",
+        "target": "ESNext",
+        "module": "CommonJS",
+        "skipLibCheck": true,
+        "noUnusedLocals": true,
+        "esModuleInterop": true,
+        "strictNullChecks": true,
+        "resolveJsonModule": true,
+        "downlevelIteration": true,
+        "moduleResolution": "Node",
+        "noUnusedParameters": true,
+        "importsNotUsedAsValues": "error",
+        "noFallthroughCasesInSwitch": true,
+        "allowSyntheticDefaultImports": true,
+        "forceConsistentCasingInFileNames": true
+    }
+}
