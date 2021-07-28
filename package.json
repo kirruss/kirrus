@@ -1,8 +1,8 @@
 {
     "scripts": {
         "build": "tsc",
-        "dev": "tsnd --respawn --notify=false -T -r dotenv/config src",
-        "start": "node -r dotenv/config dist",
+        "dev": "tsnd --respawn --notify=false -T src",
+        "start": "node dist",
         "db:migrate": "prisma migrate dev --preview-feature && prisma generate"
     },
     "dependencies": {},
