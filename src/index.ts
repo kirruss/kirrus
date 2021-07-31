@@ -76,7 +76,7 @@ class Kirrus<Paths extends readonly string[] = []> {
                     const { guards, handler } = route
 
                     const params = as<r.Params<U>>(
-                        Object.fromEntries(as<p.ExtractPathKeys<U>>(route.keys).map((k, i) => [k, matches[i]]))
+                        Object.fromEntries(as<p.ExtractPathKeys<U>>(route.keys).map((k, i) => [k, matches[i + 1]]))
                     )
 
                     return { params, guards, handler }
@@ -125,7 +125,7 @@ class Kirrus<Paths extends readonly string[] = []> {
 const { kirrus } = Kirrus
 
 kirrus()
-    .route(POST, "/auth/register", [], _ctx => "Registered successfully")
+    .route(POST, "/auth/register/:id", [], ({ params: { id } }) => `Registered successfully with the id ${id}`)
     .route(POST, "/auth/login", [], _ctx => "Logged in successfully")
     .bind(8080)
     .run()
