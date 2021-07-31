@@ -1,5 +1,5 @@
 import http from "http"
-import qs from "querystring"
+// import qs from "querystring"
 
 import { Method, POST } from "./method"
 import * as p from "./path"
@@ -18,16 +18,16 @@ type Route<P extends string> = {
     pattern: RegExp
     method: Method
     guards: r.Guard[]
-    handler: r.Handler
+    handler: r.Handler<P>
 }
 type Routes<Paths extends readonly string[]> = Paths extends [infer P, ...infer R]
     ? [Route<Cast<P, string>>, ...Routes<Cast<R, readonly string[]>>]
-    : []
+    : Route<Paths[number]>[]
 
 type FoundRoute<P extends string> = {
-    params: p.ExtractPathKeys<P> | null
+    params: { [k in p.ExtractPathKeys<P>[number]]: string }
     guards: r.Guard[]
-    handler: r.Handler
+    handler: r.Handler<P>
 }
 
 class Kirrus<Paths extends readonly string[] = []> {
@@ -45,11 +45,10 @@ class Kirrus<Paths extends readonly string[] = []> {
         this.port = port
     }
 
-    public route<P extends string>(route: r.Route<P>) {
-        const base = addLead(route.path) as P
+    public route<P extends string>(method: Method, path: P, guards: r.Guard[], handler: r.Handler<P>) {
+        const base = addLead(path) as P
 
         const { keys, pattern } = p.parse(base)
-        const { method, guards, handler } = route
 
         const routes = as<Routes<[...Paths, P]>>(this.routes)
         // TODO: Figure out why TypeScript is dumb and expects a never
@@ -68,7 +67,7 @@ class Kirrus<Paths extends readonly string[] = []> {
         const isHEAD = method === "HEAD"
 
         for (const r of this.routes) {
-            const route = as<Route<Paths[number]>>(r)
+            const route = as<Route<U>>(r)
             if (route.method.length === 0 || route.method === method || (isHEAD && route.method === "GET")) {
                 if (route.keys.length > 0) {
                     const matches = route.pattern.exec(url)
@@ -76,15 +75,16 @@ class Kirrus<Paths extends readonly string[] = []> {
 
                     const { guards, handler } = route
 
-                    const params = as<p.ExtractPathKeys<U>>(
-                        Object.fromEntries(as<Paths[number][]>(route.keys).map((k, i) => [k, matches[i]]))
+                    const params = as<r.Params<U>>(
+                        Object.fromEntries(as<p.ExtractPathKeys<U>>(route.keys).map((k, i) => [k, matches[i]]))
                     )
 
                     return { params, guards, handler }
                 } else if (route.pattern.test(url)) {
                     const { guards, handler } = route
 
-                    return { params: null, guards, handler }
+                    const params = as<r.Params<U>>({})
+                    return { params, guards, handler }
                 }
             }
         }
@@ -105,10 +105,12 @@ class Kirrus<Paths extends readonly string[] = []> {
             return res.end()
         }
 
-        const { handler } = route
+        const { handler, params } = route
+
+        const ctx = { params }
 
         res.statusCode = 200
-        res.write(handler())
+        res.write(handler(ctx))
         res.end()
     }
 
@@ -123,17 +125,7 @@ class Kirrus<Paths extends readonly string[] = []> {
 const { kirrus } = Kirrus
 
 kirrus()
-    .route({
-        method: POST,
-        path: "/auth/register",
-        guards: [],
-        handler: () => "Registered successfully"
-    })
-    .route({
-        method: POST,
-        path: "/auth/login",
-        guards: [],
-        handler: () => "Logged in successfully"
-    })
+    .route(POST, "/auth/register", [], _ctx => "Registered successfully")
+    .route(POST, "/auth/login", [], _ctx => "Logged in successfully")
     .bind(8080)
     .run()
