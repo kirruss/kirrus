@@ -1,7 +1,7 @@
 import http from "http"
 import qs from "querystring"
 
-import type { Method } from "./method"
+import { Method, POST } from "./method"
 import * as p from "./path"
 import type * as r from "./route"
 import * as url from "./url"
@@ -11,12 +11,6 @@ const addLead = (path: string) => {
     const [c] = path
 
     return c === "/" ? path : `/${path}`
-}
-
-const rootPath = (path: string) => {
-    const slash = path.indexOf("/", 1)
-
-    return slash > 1 ? path.slice(0, slash) : path
 }
 
 type Route<P extends string> = {
@@ -52,7 +46,7 @@ class Kirrus<Paths extends readonly string[] = []> {
     }
 
     public route<P extends string>(route: r.Route<P>) {
-        const base = addLead(rootPath(route.path)) as P
+        const base = addLead(route.path) as P
 
         const { keys, pattern } = p.parse(base)
         const { method, guards, handler } = route
@@ -113,7 +107,7 @@ class Kirrus<Paths extends readonly string[] = []> {
 
         const { handler } = route
 
-        res.statusCode = 404
+        res.statusCode = 200
         res.write(handler())
         res.end()
     }
@@ -130,10 +124,16 @@ const { kirrus } = Kirrus
 
 kirrus()
     .route({
-        method: as<Method>("GET"),
-        path: "/auth",
+        method: POST,
+        path: "/auth/register",
         guards: [],
-        handler: () => "Hello world"
+        handler: () => "Registered successfully"
+    })
+    .route({
+        method: POST,
+        path: "/auth/login",
+        guards: [],
+        handler: () => "Logged in successfully"
     })
     .bind(8080)
     .run()
