@@ -13,24 +13,24 @@ const addLead = (path: string) => {
     return c === "/" ? path : `/${path}`
 }
 
-type Route<P extends string, Qs extends readonly string[]> = {
+type Route<P extends string, Q extends string> = {
     keys: p.ExtractPathKeys<P>
     pattern: RegExp
     method: Method
-    validator: r.Validator<P, Qs>
+    validator: r.Validator<P, Q>
     guards: r.Guard[]
-    handler: r.Handler<P, Qs>
+    handler: r.Handler<P, Q>
 }
-type Arg = { params: string; query: readonly string[] }
+type Arg = { path: string; query: string }
 type Routes<Args extends readonly Arg[]> = Args extends [infer A, ...infer R]
-    ? [Route<Cast<A, Arg>["params"], Cast<A, Arg>["query"]>, ...Routes<Cast<R, readonly Arg[]>>]
-    : Route<Args[number]["params"], Args[number]["query"]>[]
+    ? [Route<Cast<A, Arg>["path"], Cast<A, Arg>["query"]>, ...Routes<Cast<R, readonly Arg[]>>]
+    : Route<Args[number]["path"], Args[number]["query"]>[]
 
-type FoundRoute<P extends string, Qs extends readonly string[]> = {
+type FoundRoute<P extends string, Q extends string> = {
     params: { [k in p.ExtractPathKeys<P>[number]]: string }
-    validator: r.Validator<P, Qs>
+    validator: r.Validator<P, Q>
     guards: r.Guard[]
-    handler: r.Handler<P, Qs>
+    handler: r.Handler<P, Q>
 }
 
 class Kirrus<Args extends readonly Arg[] = []> {
@@ -48,18 +48,18 @@ class Kirrus<Args extends readonly Arg[] = []> {
         this.port = port
     }
 
-    public route<P extends string, Qs extends readonly string[]>(
+    public route<P extends string, Q extends string>(
         method: Method,
         path: P,
-        validator: r.Validator<P, Qs>,
+        validator: r.Validator<P, Q>,
         guards: r.Guard[],
-        handler: r.Handler<P, Qs>
+        handler: r.Handler<P, Q>
     ) {
         const base = addLead(path) as P
 
         const { keys, pattern } = p.parse(base)
 
-        const routes = as<Routes<[...Args, { params: P; query: Qs }]>>(this.routes)
+        const routes = as<Routes<[...Args, { path: P; query: Q }]>>(this.routes)
         // TODO: Figure out why TypeScript is dumb and expects a never
         routes.push(as<never /* ??? */>({ keys, pattern, method, guards, validator, handler }))
 
@@ -72,11 +72,11 @@ class Kirrus<Args extends readonly Arg[] = []> {
         return this
     }
 
-    private find<U extends string, Qs extends readonly string[]>(method: Method, url: U): FoundRoute<U, Qs> | null {
+    private find<U extends string, Q extends string>(method: Method, url: U): FoundRoute<U, Q> | null {
         const isHEAD = method === "HEAD"
 
         for (const r of this.routes) {
-            const route = as<Route<U, Qs>>(r)
+            const route = as<Route<U, Q>>(r)
             if (route.method.length === 0 || route.method === method || (isHEAD && route.method === "GET")) {
                 if (route.keys.length > 0) {
                     const matches = route.pattern.exec(url)
