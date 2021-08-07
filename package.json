@@ -5,7 +5,9 @@
         "start": "node dist",
         "db:migrate": "prisma migrate dev --preview-feature && prisma generate"
     },
-    "dependencies": {},
+    "dependencies": {
+        "runtypes": "^6.3.2"
+    },
     "devDependencies": {
         "@types/node": "^16.3.3",
         "ts-node-dev": "^1.1.8",

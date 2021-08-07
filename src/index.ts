@@ -1,7 +1,7 @@
 import http from "http"
-// import qs from "querystring"
+import qs from "querystring"
 
-import { Method, POST } from "./method"
+import type { Method } from "./method"
 import * as p from "./path"
 import type * as r from "./route"
 import * as url from "./url"
@@ -13,25 +13,28 @@ const addLead = (path: string) => {
     return c === "/" ? path : `/${path}`
 }
 
-type Route<P extends string> = {
+type Route<P extends string, Qs extends readonly string[]> = {
     keys: p.ExtractPathKeys<P>
     pattern: RegExp
     method: Method
+    validator: r.Validator<P, Qs>
     guards: r.Guard[]
-    handler: r.Handler<P>
+    handler: r.Handler<P, Qs>
 }
-type Routes<Paths extends readonly string[]> = Paths extends [infer P, ...infer R]
-    ? [Route<Cast<P, string>>, ...Routes<Cast<R, readonly string[]>>]
-    : Route<Paths[number]>[]
+type Arg = { params: string; query: readonly string[] }
+type Routes<Args extends readonly Arg[]> = Args extends [infer A, ...infer R]
+    ? [Route<Cast<A, Arg>["params"], Cast<A, Arg>["query"]>, ...Routes<Cast<R, readonly Arg[]>>]
+    : Route<Args[number]["params"], Args[number]["query"]>[]
 
-type FoundRoute<P extends string> = {
+type FoundRoute<P extends string, Qs extends readonly string[]> = {
     params: { [k in p.ExtractPathKeys<P>[number]]: string }
+    validator: r.Validator<P, Qs>
     guards: r.Guard[]
-    handler: r.Handler<P>
+    handler: r.Handler<P, Qs>
 }
 
-class Kirrus<Paths extends readonly string[] = []> {
-    private routes: Routes<Paths>
+class Kirrus<Args extends readonly Arg[] = []> {
+    private routes: Routes<Args>
 
     private port?: number
     private server?: http.Server
@@ -40,19 +43,25 @@ class Kirrus<Paths extends readonly string[] = []> {
         return new Kirrus(as<[]>([]))
     }
 
-    private constructor(routes: Routes<Paths>, port?: number) {
+    private constructor(routes: Routes<Args>, port?: number) {
         this.routes = routes
         this.port = port
     }
 
-    public route<P extends string>(method: Method, path: P, guards: r.Guard[], handler: r.Handler<P>) {
+    public route<P extends string, Qs extends readonly string[]>(
+        method: Method,
+        path: P,
+        validator: r.Validator<P, Qs>,
+        guards: r.Guard[],
+        handler: r.Handler<P, Qs>
+    ) {
         const base = addLead(path) as P
 
         const { keys, pattern } = p.parse(base)
 
-        const routes = as<Routes<[...Paths, P]>>(this.routes)
+        const routes = as<Routes<[...Args, { params: P; query: Qs }]>>(this.routes)
         // TODO: Figure out why TypeScript is dumb and expects a never
-        routes.push(as<never /* ??? */>({ keys, pattern, method, guards, handler }))
+        routes.push(as<never /* ??? */>({ keys, pattern, method, guards, validator, handler }))
 
         return new Kirrus(routes)
     }
@@ -63,28 +72,28 @@ class Kirrus<Paths extends readonly string[] = []> {
         return this
     }
 
-    private find<U extends string>(method: Method, url: U): FoundRoute<U> | null {
+    private find<U extends string, Qs extends readonly string[]>(method: Method, url: U): FoundRoute<U, Qs> | null {
         const isHEAD = method === "HEAD"
 
         for (const r of this.routes) {
-            const route = as<Route<U>>(r)
+            const route = as<Route<U, Qs>>(r)
             if (route.method.length === 0 || route.method === method || (isHEAD && route.method === "GET")) {
                 if (route.keys.length > 0) {
                     const matches = route.pattern.exec(url)
                     if (matches === null) continue
 
-                    const { guards, handler } = route
+                    const { validator, guards, handler } = route
 
                     const params = as<r.Params<U>>(
                         Object.fromEntries(as<p.ExtractPathKeys<U>>(route.keys).map((k, i) => [k, matches[i + 1]]))
                     )
 
-                    return { params, guards, handler }
+                    return { params, validator, guards, handler }
                 } else if (route.pattern.test(url)) {
-                    const { guards, handler } = route
+                    const { validator, guards, handler } = route
 
                     const params = as<r.Params<U>>({})
-                    return { params, guards, handler }
+                    return { params, validator, guards, handler }
                 }
             }
         }
@@ -99,6 +108,8 @@ class Kirrus<Paths extends readonly string[] = []> {
             return res.end()
         }
 
+        const query = info.query !== null ? qs.parse(info.query) : {}
+
         const route = this.find(as(req.method), info.pathname)
         if (!route) {
             res.statusCode = 404
@@ -107,7 +118,7 @@ class Kirrus<Paths extends readonly string[] = []> {
 
         const { handler, params } = route
 
-        const ctx = { params }
+        const ctx = { params, query }
 
         res.statusCode = 200
         res.write(handler(ctx))
@@ -122,10 +133,4 @@ class Kirrus<Paths extends readonly string[] = []> {
     }
 }
 
-const { kirrus } = Kirrus
-
-kirrus()
-    .route(POST, "/auth/register/:id", [], ({ params: { id } }) => `Registered successfully with the id ${id}`)
-    .route(POST, "/auth/login", [], _ctx => "Logged in successfully")
-    .bind(8080)
-    .run()
+export const { kirrus } = Kirrus
